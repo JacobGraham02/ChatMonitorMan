@@ -59,7 +59,6 @@ function createWindow() {
 }
 
 async function processCommandQueue() {
-    console.log("Process command queue");
     if (isProcessingCommandQueue) {
         return;
     }
@@ -67,14 +66,8 @@ async function processCommandQueue() {
 
     while (commandQueue.length > 0) {
         const { command, websocket_id, steam_id } = commandQueue.shift();
-        console.log(`command is: ${command}`);
-        console.log(`websocket_id is: ${websocket_id}`);
-        console.log(`steam_id is: ${steam_id}`);
         if (command && websocket_id && steam_id) {
-            console.log("Command is running");
             await runCommand(command, websocket_id);
-        } else {
-            console.log("Command is not running");
         }
     }
 
@@ -85,18 +78,14 @@ async function createWebSocketConnection(websocket_id) {
     const websocket = new WebSocket(`ws://localhost:8080?websocket_id=${encodeURIComponent(websocket_id)}`);
     let guild_id = undefined;
 
-    console.log(websocket);
-
     websocket.on('message', async (message) => {
         const json_message_data = JSON.parse(message);
 
         if (json_message_data.action === `announceMessage`) {
             const steam_id = json_message_data.player_steam_id;
-            console.log('Announce message websocket back to client');
+
             if (Array.isArray(json_message_data.messages)) {
-                console.log("announcement message is array");
                 for (const command of json_message_data.messages) {
-                    console.log(`command for commandQueue is: ${command}`);
                     commandQueue.push({ command, websocket_id, steam_id });
                 }
                 processCommandQueue();
@@ -162,7 +151,6 @@ async function createWebSocketConnection(websocket_id) {
         }
 
         if (json_message_data.action === `disable`) {
-            console.log("Disable bot button has been clicked");
             if (intervals.has(`enable_game_server_checks_interval`)) {
                 clearInterval(intervals.get(`enable_game_server_checks_interval`));
                 intervals.delete(`enable_game_server_checks_interval`);
@@ -306,7 +294,6 @@ async function moveMouseToContinueButtonXYLocation(websocket_id) {
             );
             return;
         }
-        console.log('Moved mouse to continue button location');
     } catch (error) {
         console.error(`Failed to move mouse to continue button location`);
     }
@@ -353,7 +340,6 @@ async function pressMouseLeftClickButton(websocket_id) {
             );
             return;
         }
-        console.log(`Clicked the left mouse button`);
     } catch (error) {
         console.error(`Failed to click the left mouse button`);
     }
@@ -378,7 +364,6 @@ async function copyToClipboard(text, websocket_id) {
             );
             return;
         }
-        console.log(`Copied text to system clipboard operation successful`);
     } catch (error) {
         console.error(`Failed to copy text to the system clipboard: ${error}`);
     }
@@ -404,7 +389,6 @@ async function pasteFromClipboard(websocket_id) {
             );
             return;
         }
-        console.log(`Pasted text from system clipboard successfully`);
     } catch (error) {
         console.error(`Failed to paste text from system clipboard: ${error}`);
     }
@@ -430,7 +414,6 @@ async function pressTabKey(websocket_id) {
             );
             return;
         }
-        console.log(`Pressed the tab key`);
     } catch (error) {
         console.error(`Failed to press the tab key: ${error}`);
     }
@@ -456,7 +439,6 @@ async function pressCharacterKeyT(websocket_id) {
             );
             return;
         }
-        console.log(`Pressed the t character key`);
     } catch (error) {
         console.error(`Failed to press the t character key: ${error}`);
     }
@@ -483,7 +465,6 @@ async function pressBackspaceKey(websocket_id) {
             );
             return;
         }
-        console.log(`Pressed the backspace key`);
     } catch (error) {
         console.error(`Failed to press the backspace key: ${error}`);
     }
@@ -509,7 +490,6 @@ async function pressEnterKey(websocket_id) {
             );
             return;
         }
-        console.log(`Pressed the enter key`);
     } catch (error) {
         console.error(`Failed to press the enter key: ${error}`);
     }
@@ -542,11 +522,6 @@ async function sendLogData(log_type, message, guild_id, file_type) {
             })
         });
         const response_data = await response.json();
-        if (response_data.success) {
-            console.log(`Log data send successfully: ${response_data.message}`);
-        } else {
-            console.error(`Failed to send log data: ${response_data.message}`);
-        }
     } catch (error) {
         console.error(`There was an error when attempting to send new log file data: ${error}`);
     }

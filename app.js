@@ -280,7 +280,6 @@ async function establishFtpConnectionToGPortal(guild_id, ftp_server_data) {
  * Attempts to reconnect to the GPortal FTP server when the connection is severed. Used in conjunction with the @establishFtpConnectionToGportal function
  */
 function retryConnection(guild_id, ftp_server_data) {
-    console.log(`Retrying connection to FTP server for guild ${guild_id} in ${RETRY_DELAY / 1000} seconds`);
     const ftp_retry_delay = 5000;
     // message_logger.writeLogToAzureContainer(
     //     `InfoLogs`,
@@ -684,7 +683,6 @@ async function readAndFormatGportalFtpServerChatLog(guild_id, ftp_client) {
 
 
                 for (let i = 0; i < file_contents_steam_id_and_messages.length; i++) {
-                    console.log(`Enqueue command: ${file_contents_steam_id_and_messages[i]}`);
                     await enqueueCommand(file_contents_steam_id_and_messages[i], guild_id);
                 }
 
@@ -891,7 +889,6 @@ web_socket_server.on('upgrade', (request, socket, head) => {
 });
 
 web_socket_server_instance.on('connection', function(websocket, request) {
-    console.log("Websocket connection established");
     const queryParameters = new URL(request.url, `http://${request.headers.host}`).searchParams;
     const websocket_id = queryParameters.get('websocket_id');
     websocket.id = websocket_id;
@@ -902,7 +899,6 @@ web_socket_server_instance.on('connection', function(websocket, request) {
 
     websocket.on('message', async function(message) {
         let parsedWebsocketMessage = '';
-        console.log('Websocket message');
 
         try {
             parsedWebsocketMessage = JSON.parse(message);
@@ -911,9 +907,6 @@ web_socket_server_instance.on('connection', function(websocket, request) {
         }
 
         if (parsedWebsocketMessage.action === "statusUpdate") {
-
-            console.log('Websocket message stuff');
-
             const json_message_guild_id = parsedWebsocketMessage.guild_id;
             const json_message_ftp_server_data = parsedWebsocketMessage.ftp_server_data;
             const json_message_iso8601_time = parsedWebsocketMessage.localTime;
@@ -1578,8 +1571,6 @@ client_instance.on('guildCreate', async (guild) => {
         await createBotCategoryAndChannels(guild);
         const bot_discord_information = await bot_repository_instance.getBotDataByGuildId(guild_id);
 
-        console.log(bot_discord_information);
-
         if (bot_discord_information) {
             const server_info_button = new ButtonBuilder()
                 .setCustomId('serverinformationbutton')
@@ -1860,7 +1851,6 @@ client_instance.on('ready', () => {
 });
 
 async function createBotCategoryAndChannels(guild) {
-    console.log('Create bot channels and category');
     try {
         const category_creation_response = await guild.channels.create({
             name: `SCUM Chat Monitor Bot`,
@@ -1956,7 +1946,6 @@ async function registerInitialSetupCommands(bot_token, bot_id, guild_id) {
 }
 
 async function enqueueCommand(user_chat_message_object, guild_id) {
-    console.log(`Command has been enqueued: ${user_chat_message_object} + ${guild_id}`);
     const user_command_queue = new Queue();
 
     user_command_queue.enqueue(user_chat_message_object);
@@ -2135,7 +2124,6 @@ async function teleportPlayerToLocation(coordinates, websocket_id, steam_id) {
 }
 
 async function sendMessageToClient(message, websocket_id, steam_id) {
-    console.log("Send message to client");
     const websocket = cache.get(`websocket_${websocket_id}`);
 
     const message_array = [message];
