@@ -27,7 +27,7 @@ function createWindow() {
     });
 
     // Load the index page of your app from your Express server.
-    mainWindow.loadURL('https://scumchatmonitorweb.azurewebsites.net');
+    mainWindow.loadURL('http://localhost:8080');
 
     // const content_security_policy = `
     //     default-src 'none';
@@ -46,7 +46,7 @@ function createWindow() {
     //                 ...details.responseHeaders,
     //                 'Content-Security-Policy': [content_security_policy]
     //             }
-    //         });   
+    //         });
     //     });
     // });
 
@@ -59,6 +59,7 @@ function createWindow() {
 }
 
 async function processCommandQueue() {
+    console.log("Process command queue");
     if (isProcessingCommandQueue) {
         return;
     }
@@ -66,8 +67,14 @@ async function processCommandQueue() {
 
     while (commandQueue.length > 0) {
         const { command, websocket_id, steam_id } = commandQueue.shift();
+        console.log(`command is: ${command}`);
+        console.log(`websocket_id is: ${websocket_id}`);
+        console.log(`steam_id is: ${steam_id}`);
         if (command && websocket_id && steam_id) {
-            await runCommand(command, websocket_id, steam_id);
+            console.log("Command is running");
+            await runCommand(command, websocket_id);
+        } else {
+            console.log("Command is not running");
         }
     }
 
@@ -75,15 +82,22 @@ async function processCommandQueue() {
 }
 
 async function createWebSocketConnection(websocket_id) {
-    const websocket = new WebSocket(`ws://scumchatmonitorweb.azurewebsites.net?websocket_id=${encodeURIComponent(websocket_id)}`);
+    const websocket = new WebSocket(`ws://localhost:8080?websocket_id=${encodeURIComponent(websocket_id)}`);
+    let guild_id = undefined;
+
+    console.log(websocket);
 
     websocket.on('message', async (message) => {
         const json_message_data = JSON.parse(message);
 
         if (json_message_data.action === `announceMessage`) {
+            const steam_id = json_message_data.player_steam_id;
+            console.log('Announce message websocket back to client');
             if (Array.isArray(json_message_data.messages)) {
+                console.log("announcement message is array");
                 for (const command of json_message_data.messages) {
-                    commandQueue.push({ command: command, websocket_id: websocket_id, player_steam_id: 0 });
+                    console.log(`command for commandQueue is: ${command}`);
+                    commandQueue.push({ command, websocket_id, steam_id });
                 }
                 processCommandQueue();
             }
@@ -94,7 +108,7 @@ async function createWebSocketConnection(websocket_id) {
                 const commands_array = json_message_data.package_items;
                 const player_steam_id = json_message_data.steam_id;
                 for (const command of commands_array) {
-                    commandQueue.push({ command: command, websocket_id: websocket_id, player_steam_id: player_steam_id });
+                    commandQueue.push({ command: command, websocket_id: websocket_id, steam_id: player_steam_id });
                 }
                 processCommandQueue();
             }
@@ -107,16 +121,16 @@ async function createWebSocketConnection(websocket_id) {
             const y_coordinate = teleport_coordinates.y;
             const z_coordinate = teleport_coordinates.z;
             const teleport_command = `#Teleport ${x_coordinate} ${y_coordinate} ${z_coordinate} ${player_steam_id}`;
-            commandQueue.push({ command: teleport_command, websocket_id: websocket_id, player_steam_id: player_steam_id });
+            commandQueue.push({ command: teleport_command, websocket_id: websocket_id, steam_id: player_steam_id });
             processCommandQueue();
         }
 
-        if (json_message_data.action === `enable` && json_message_data.guild_id 
+        if (json_message_data.action === `enable` && json_message_data.guild_id
         && json_message_data.ftp_server_data && json_message_data.game_server_data) {
             const check_server_online_and_bot_connected_interval = setInterval(async function() {
                 const game_server_data = json_message_data.game_server_data;
                 const ftp_server_data = json_message_data.ftp_server_data;
-                const guild_id = json_message_data.guild_id;
+                guild_id = json_message_data.guild_id;
 
                 try {
                     const isConnectedToServer = await checkWindowsHasTcpConnectionToGameServer(game_server_data.game_server_ipv4, game_server_data.game_server_port);
@@ -126,7 +140,7 @@ async function createWebSocketConnection(websocket_id) {
                     if (!isConnectedToServer && isServerOnline) {
                         await reinitializeBotOnServer(guild_id);
                     }
-        
+
                     // Send response back through WebSocket
                     websocket.send(JSON.stringify({
                         action: 'statusUpdate',
@@ -144,7 +158,6 @@ async function createWebSocketConnection(websocket_id) {
                     }));
                 }
             }, 60000);
-
             intervals.set(`enable_game_server_checks_interval_${guild_id}`, check_server_online_and_bot_connected_interval);
         }
 
@@ -158,7 +171,7 @@ async function createWebSocketConnection(websocket_id) {
     });
 
     websocket.on('close', function() {
-        
+
     });
 
     websocket.on('error', function() {
@@ -175,7 +188,7 @@ function getLocalTimeInISO8601Format() {
 
 /**
 * This function uses the native Windows command prompt shell to execute the command 'netstat -an' to fetch a list of current connections.
-* It checks if the computer is connected to the game server IP address, which helps ensure the bot keeps trying to rejoin the game server if disconnected. 
+* It checks if the computer is connected to the game server IP address, which helps ensure the bot keeps trying to rejoin the game server if disconnected.
 * The function now returns a Promise that resolves to true if connected, or false otherwise.
 * @returns {Promise<boolean>} A promise that resolves to a boolean indicating the connection status.
 */
@@ -189,10 +202,10 @@ async function checkWindowsHasTcpConnectionToGameServer(game_server_address, gam
 }
 
 /**
-* This function uses the native Windows command prompt shell to execute a 'ping' command that will test to see if the game server is in an operational state.
-* Because the game server restarts every day at approximately 18:00, we must ping the server to see if the server is online before doing anything on the server. 
-* @param {boolean} callback 
-*/
+ * This function uses the native Windows command prompt shell to execute a 'ping' command that will test to see if the game server is in an operational state.
+ * Because the game server restarts every day at approximately 18:00, we must ping the server to see if the server is online before doing anything on the server.
+ * @param game_server_address
+ */
 async function checkWindowsCanPingGameServer(game_server_address) {
     return new Promise((resolve, reject) => {
         exec(`ping ${game_server_address}`, (error, stdout) => {
@@ -204,10 +217,10 @@ async function checkWindowsCanPingGameServer(game_server_address) {
 
 /**
  * An asynchronous function which pauses the execution of the application for a specified number of milliseconds. This is required when you are using Windows powershell
- * to prevent bottlenecks, slowdowns, or other abnormal system operations. 
- * In this instance, a promise is an operation that will prevent further execution of code. 
+ * to prevent bottlenecks, slowdowns, or other abnormal system operations.
+ * In this instance, a promise is an operation that will prevent further execution of code.
  * @param {number} milliseconds The total number of milliseconds to halt the application execution for.
- * @returns Returns a promise that will resolve itself after a certain number of milliseconds. 
+ * @returns Returns a promise that will resolve itself after a certain number of milliseconds.
  */
 function sleep(milliseconds) {
     return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -218,10 +231,9 @@ function sleep(milliseconds) {
  * an 'await sleep()' blocker must be used for system stability.
  * @param {string} command A string value containing the SCUM command to run in-game
  * @param websocket_id An integer containing the websocket id that is associated with a scum player's server for logging purposes
- * @param steam_id An integer containing the steam id of the user that executed the command
  * @returns if the system cannot detect the SCUM process currently running, the function will cease execution.
  */
-async function runCommand(command, websocket_id, steam_id) {
+async function runCommand(command, websocket_id) {
     await sleep(1000);
     copyToClipboard(command, websocket_id);
     await sleep(1000);
@@ -238,10 +250,10 @@ async function runCommand(command, websocket_id, steam_id) {
 /**
  * This is the sequence of operations which executes after the server restarts, and the bot must log back into the server.
  * The program detects if the server has restarted by checking for a specific TCP connection to the game server. Because the game server on SCUM has a static IP address and port,
- * we can use the Windows command 'netstat -an' to check for existing connections on the computer and see if our target IP address exists in the list. 
+ * we can use the Windows command 'netstat -an' to check for existing connections on the computer and see if our target IP address exists in the list.
  * await sleep(N) is an asynchronous operation used to block any further processing of this function until after N milliseconds.
  * You can convert milliseconds to seconds by dividing N / 1000 (80000 milliseconds / 1000 milliseconds = 8 seconds).
- * The SCUM game interface has a 'continue' button to join the server you were last on, so this operation moves to there. 
+ * The SCUM game interface has a 'continue' button to join the server you were last on, so this operation moves to there.
  */
 async function reinitializeBotOnServer(websocket_id) {
     try {
@@ -306,7 +318,7 @@ async function moveMouseToContinueButtonXYLocation(websocket_id) {
  */
 // async function moveMouseToPressOkForMessage(websocket_id) {
 //     const command = `powershell.exe -command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class P { [DllImport(\\"user32.dll\\")] public static extern bool SetCursorPos(int x, int y); }'; [P]::SetCursorPos(${x_cursor_position}, ${y_cursor_position})"`;
-    
+
 //     try {
 //         const { stderr } = await executeAsyncCommand(command);
 //         if (stderr) {
@@ -329,7 +341,7 @@ async function moveMouseToContinueButtonXYLocation(websocket_id) {
  */
 async function pressMouseLeftClickButton(websocket_id) {
     const command = `powershell.exe -command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class P { [DllImport(\\"user32.dll\\")] public static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, int dwExtraInfo); }'; $leftDown = 0x0002; $leftUp = 0x0004; [P]::mouse_event($leftDown, 0, 0, 0, 0); [P]::mouse_event($leftUp, 0, 0, 0, 0);"`;
-    
+
     try {
         const { stderr } = await executeAsyncCommand(command);
         if (stderr) {
@@ -374,13 +386,13 @@ async function copyToClipboard(text, websocket_id) {
 
 /**
  * Uses the Windows powershell command '[System.Windows.Forms.SendKeys]::SendWait('^v') to simulate a key press sequence that pastes text.
- * In this application specifically, this function pastes text into the active window, which is SCUM.exe. 
- * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can 
- * change states appropriately and not cause bottlenecks. 
+ * In this application specifically, this function pastes text into the active window, which is SCUM.exe.
+ * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can
+ * change states appropriately and not cause bottlenecks.
  */
 async function pasteFromClipboard(websocket_id) {
     const command = `powershell.exe -command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"`
- 
+
     try {
         const { stderr } = await executeAsyncCommand(command);
         if (stderr) {
@@ -400,9 +412,9 @@ async function pasteFromClipboard(websocket_id) {
 
 /**
  * Uses the Windows powershell command '[System.Windows.Forms.SendKeys]::SendWait('{TAB}') to simulate a tab key press on the active window. In this case, the active
- * window is SCUM.exe. The tab key switches channels between 'Local', 'Global', 'Admin', and 'Squad'. Currently, this function is not in use and is here for your convenience. 
- * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can 
- * change states appropriately and not cause bottlenecks. 
+ * window is SCUM.exe. The tab key switches channels between 'Local', 'Global', 'Admin', and 'Squad'. Currently, this function is not in use and is here for your convenience.
+ * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can
+ * change states appropriately and not cause bottlenecks.
  */
 async function pressTabKey(websocket_id) {
     const command = `powershell.exe -command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{TAB}')"`;
@@ -425,10 +437,10 @@ async function pressTabKey(websocket_id) {
 }
 
 /**
- * Uses the Windows powershell command '[System.Windows.Forms.SendKeys]::SendWait('t') to simulate a 't' character key press on the active window. 
- * In this case, the active window is SCUM.exe. The t character brings actives the in-game chat menu if it is not already active. 
- * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can 
- * change states appropriately and not cause bottlenecks. 
+ * Uses the Windows powershell command '[System.Windows.Forms.SendKeys]::SendWait('t') to simulate a 't' character key press on the active window.
+ * In this case, the active window is SCUM.exe. The t character brings actives the in-game chat menu if it is not already active.
+ * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can
+ * change states appropriately and not cause bottlenecks.
  */
 async function pressCharacterKeyT(websocket_id) {
     const command = `powershell.exe -command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('t')"`;
@@ -451,11 +463,11 @@ async function pressCharacterKeyT(websocket_id) {
 }
 
 /**
- * Uses the Windows powershell command '[System.Windows.Forms.SendKeys]::SendWait('{BACKSPACE}') to simulate a backspace key press on the active window. 
+ * Uses the Windows powershell command '[System.Windows.Forms.SendKeys]::SendWait('{BACKSPACE}') to simulate a backspace key press on the active window.
  * In this case, the active window is SCUM.exe. The backspace key will execute immediately after pressCharacterT(), erasing the 't' character from chat if the chat window
- * is already active. 
- * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can 
- * change states appropriately and not cause bottlenecks. 
+ * is already active.
+ * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can
+ * change states appropriately and not cause bottlenecks.
  */
 async function pressBackspaceKey(websocket_id) {
     const command = `powershell.exe -command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{BACKSPACE}"')`;
@@ -478,10 +490,10 @@ async function pressBackspaceKey(websocket_id) {
 }
 
 /**
- * Uses the Windows powershell command '[System.Windows.Forms.SendKeys]::SendWait('{Enter}') to simulate an 'enter' character key press on the active window. 
- * In this case, the active window is SCUM.exe. The enter key sends a message in chat when pressed. 
- * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can 
- * change states appropriately and not cause bottlenecks. 
+ * Uses the Windows powershell command '[System.Windows.Forms.SendKeys]::SendWait('{Enter}') to simulate an 'enter' character key press on the active window.
+ * In this case, the active window is SCUM.exe. The enter key sends a message in chat when pressed.
+ * If you are using this function in sequence with other ones which use powershell, you must use the sleep() function in between powershell uses so the system can
+ * change states appropriately and not cause bottlenecks.
  */
 async function pressEnterKey(websocket_id) {
     const command = `powershell.exe -command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{Enter}')"`;
@@ -517,7 +529,7 @@ function executeAsyncCommand(command) {
 
 async function sendLogData(log_type, message, guild_id, file_type) {
     try {
-        const response = await fetch('https://scumchatmonitorweb.azurewebsites.net/admin/logdata', {
+        const response = await fetch('http://localhost:8080/admin/logdata', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -555,10 +567,10 @@ app.whenReady().then(() => {
 app.whenReady().then(() => {
     ipcMain.handle('checkUserLogin', async (event, { email, password }) => {
         try {
-            const response = await fetch("https://scumchatmonitorweb.azurewebsites.net/admin/createwebsocket", {
+            const response = await fetch("http://localhost:8080/admin/createwebsocket", {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
+                headers: {
+                    'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({ email, password })
@@ -567,7 +579,7 @@ app.whenReady().then(() => {
             return response_data;
         } catch (error) {
             throw error;
-            return false; 
+            return false;
         }
     });
 });

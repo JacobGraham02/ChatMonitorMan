@@ -6,7 +6,7 @@ dotenv.config();
 export default class BotRepository {
 
     constructor(websocket_id) {
-        this.database_name = `ScumChatMonitor_${websocket_id}`; 
+        this.database_name = `ScumChatMonitor_${websocket_id}`;
         this.websocket_id = websocket_id;
         this.database_connection_manager = new DatabaseConnectionManager(this.database_name);
     }
@@ -23,7 +23,7 @@ export default class BotRepository {
 
         try {
             const bot_collection = database_connection.collection('bot');
-    
+
             await bot_collection.updateOne(
                 { guild_id: bot_information.guild_id },
                 { $set: new_bot_document },
@@ -146,7 +146,7 @@ export default class BotRepository {
 
         try {
             const bot_game_server_data_collection = database_connection.collection('bot');
-            
+
             await bot_game_server_data_collection.updateOne(
                 { guild_id: game_server_data.guild_id },
                 { $set: new_bot_game_server_document },
@@ -162,17 +162,17 @@ export default class BotRepository {
 
     async createBotItemPackage(bot_package) {
         const database_connection = await this.database_connection_manager.getConnection();
-    
+
         const new_bot_item_package_document = {
             package_name: bot_package.package_name,
             package_description: bot_package.package_description,
             package_cost: bot_package.package_cost,
             package_items: bot_package.package_items
         };
-    
+
         try {
             const bot_collection = database_connection.collection('bot_packages');
-    
+
             // Use insertOne to add the new bot item package document to the collection
             await bot_collection.insertOne(new_bot_item_package_document);
         } catch (error) {
@@ -223,6 +223,7 @@ export default class BotRepository {
     }
 
     async getBotTeleportCommandFromName(name) {
+        console.log(`Bot command teleport name is: ${name}`);
         const database_connection = await this.database_connection_manager.getConnection();
 
         try {
@@ -251,12 +252,12 @@ export default class BotRepository {
 
     async getBotItemPackagesData() {
         const database_connection = await this.database_connection_manager.getConnection();
-        
+
         try {
             const bot_packages_collection = database_connection.collection('bot_packages');
 
             const bot_packages = await bot_packages_collection.find().toArray();
-            
+
             return bot_packages;
         } catch (error) {
             console.error(`There was an error when attempting to retrieve all of the bot packages. Please inform the server administrator of this error: ${error}`);
@@ -285,12 +286,12 @@ export default class BotRepository {
 
     async getBotDataByGuildId() {
         const database_connection = await this.database_connection_manager.getConnection();
-    
+
         try {
             const bot_collection = database_connection.collection('bot');
-    
+
             const bot_data = await bot_collection.findOne({});
-    
+
             return bot_data;
         } catch (error) {
             console.error(`There was an error when attempting to retrieve the bot data by guild id. Please inform the server administrator of this error: ${error}`);
@@ -321,7 +322,7 @@ export default class BotRepository {
 
     async getBotDataByEmail(bot_email) {
         const database_connection = await this.database_connection_manager.getMongoClientConnection();
-    
+
         try {
             const bot_owners_database = database_connection.db('bot_owners');
             const users_collection = bot_owners_database.collection('users');
@@ -331,7 +332,7 @@ export default class BotRepository {
             const bot_collection = user_database.collection('bot');
             const bot_data = await bot_collection.findOne({ bot_email: bot_email });
 
-            return bot_data;  
+            return bot_data;
         } catch (error) {
             throw new Error(`There was an error when attempting to retrieve the bot data by email. Please inform the server administrator of this error: ${error}`);
         } finally {
@@ -344,9 +345,9 @@ export default class BotRepository {
 
         try {
             const bot_user_collection = database_connection.collection('bot');
-            
+
             const bot_users = await bot_user_collection.find().toArray();
-            
+
             return bot_users;
         } catch (error) {
             throw new Error(`There was an error when attempting to retrieve all bot user data. Please inform the server administrator of the following error: ${error}`);
@@ -358,19 +359,19 @@ export default class BotRepository {
     async updateBotDataByGuildId(guild_id, new_bot_data) {
         try {
             const database_connection = await this.database_connection_manager.getConnection();
-            
+
             const bot_collection = database_connection.collection('bot');
             const existing_user = await user_collection.findOne({ guild_id: guild_id });
-    
+
             if (!existing_user) {
                 throw new Error('The bot user was not found');
             }
-    
+
             /*
             The spread operator merges existing user data with the new data provided as an argument to the function
             */
             const updated_user = { ...existing_user, ...new_bot_data };
-    
+
             /*
             Iterate over the keys of the merged document and remove any fields with undefined values to avoid clearing existing data in the database
             */
@@ -379,12 +380,12 @@ export default class BotRepository {
                     delete updated_user[key];
                 }
             });
-    
+
             /*
             updateOne used to update a single user document in the database with the merged and filtered data
             */
             await bot_collection.updateOne({ guild_id: guild_id }, { $set: updated_user });
-    
+
             return updated_user;
         } catch (error) {
             throw new Error(`There was an error when attempting to update the bot identified by guild id: ${guild_id}: ${error}`);
@@ -397,7 +398,7 @@ export default class BotRepository {
         const database_connection = await this.database_connection_manager.getConnection();
         try {
             const user_collection = database_connection.collection(`users`);
-    
+
             const new_user_document = {
                 user_steam_name: user_steam_name,
                 user_steam_id: user_steam_id,
@@ -406,14 +407,14 @@ export default class BotRepository {
                 user_joining_server_first_time: 0,
                 user_money: 0
             };
-    
+
             // Use updateOne with $setOnInsert and upsert: true to ensure only new users are added
             await user_collection.updateOne(
                 { user_steam_id: user_steam_id },
                 { $setOnInsert: new_user_document },
                 { upsert: true }
             );
-    
+
         } catch (error) {
             console.error(`Error creating user: ${error}`);
             throw new Error(`Error creating user: ${error}`);
@@ -464,7 +465,7 @@ export default class BotRepository {
         }
     }
 
-    async findUserByIdIfFirstServerJoin(user_steam_id) { 
+    async findUserByIdIfFirstServerJoin(user_steam_id) {
         const database_connection = await this.database_connection_manager.getConnection();
         try {
             const user_collection = database_connection.collection('users');
@@ -522,7 +523,7 @@ export default class BotRepository {
         } finally {
             await this.releaseConnectionSafely(database_connection);
         }
-    } 
+    }
 
     async deleteBotPackageByName(package_name) {
         const database_connection = await this.database_connection_manager.getConnection();
@@ -578,7 +579,7 @@ export default class BotRepository {
             await this.releaseConnectionSafely(database_connection);
         }
     }
-    
+
     async releaseConnectionSafely(database_connection) {
         if (database_connection) {
             try {

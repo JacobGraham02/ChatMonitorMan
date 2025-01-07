@@ -290,7 +290,7 @@ function retryConnection(guild_id, ftp_server_data) {
     // );
     setTimeout(async() => {
         try {
-            const ftp_client = await establishFtpConnectionToGportal(guild_id, ftp_server_data);
+            const ftp_client = await establishFtpConnectionToGPortal(guild_id, ftp_server_data);
         } catch (error) {
             retryConnection(guild_id, ftp_server_data);
         }
@@ -684,14 +684,15 @@ async function readAndFormatGportalFtpServerChatLog(guild_id, ftp_client) {
 
 
                 for (let i = 0; i < file_contents_steam_id_and_messages.length; i++) {
+                    console.log(`Enqueue command: ${file_contents_steam_id_and_messages[i]}`);
                     await enqueueCommand(file_contents_steam_id_and_messages[i], guild_id);
                 }
 
-                sendPlayerMessagesToDiscord(
-                    received_chat_messages,
-                    cache.get(`discord_channel_for_chat_${guild_id}`),
-                    guild_id
-                );
+                // sendPlayerMessagesToDiscord(
+                //     received_chat_messages,
+                //     cache.get(`discord_channel_for_chat_${guild_id}`),
+                //     guild_id
+                // );
             });
             stream.on('error', (error) => {
                 // message_logger.writeLogToAzureContainer(
@@ -890,6 +891,7 @@ web_socket_server.on('upgrade', (request, socket, head) => {
 });
 
 web_socket_server_instance.on('connection', function(websocket, request) {
+    console.log("Websocket connection established");
     const queryParameters = new URL(request.url, `http://${request.headers.host}`).searchParams;
     const websocket_id = queryParameters.get('websocket_id');
     websocket.id = websocket_id;
@@ -899,25 +901,33 @@ web_socket_server_instance.on('connection', function(websocket, request) {
     cache.set(`bot_repository_${websocket_id}`, new BotRepository(websocket_id));
 
     websocket.on('message', async function(message) {
-        const json_message = JSON.parse(message);
+        let parsedWebsocketMessage = '';
+        console.log('Websocket message');
 
-        if (json_message.action === "statusUpdate" && json_message.ftp_server_data && json_message.connectedToServer
-            && json_message.serverOnline && json_message.localTime) {
+        try {
+            parsedWebsocketMessage = JSON.parse(message);
+        } catch (error) {
+            console.error(`Failed to parse Websocket payload as JSON: ${error}`);
+        }
 
-            const json_message_guild_id = json_message.guild_id;
-            const json_message_ftp_server_data = json_message.ftp_server_data;
-            const json_message_iso8601_time = json_message.localTime;
+        if (parsedWebsocketMessage.action === "statusUpdate") {
+
+            console.log('Websocket message stuff');
+
+            const json_message_guild_id = parsedWebsocketMessage.guild_id;
+            const json_message_ftp_server_data = parsedWebsocketMessage.ftp_server_data;
+            const json_message_iso8601_time = parsedWebsocketMessage.localTime;
 
             const current_date_hours = new Date(json_message_iso8601_time).getHours();
 
             cache.set(`restart_time_${json_message_guild_id}`, current_date_hours);
 
-            const ftp_client = await establishFtpConnectionToGportal(json_message_guild_id, json_message_ftp_server_data);
+            const ftp_client = await establishFtpConnectionToGPortal(json_message_guild_id, json_message_ftp_server_data);
 
             if (ftp_client) {
                 readAndFormatGportalFtpServerChatLog(json_message_guild_id, ftp_client);
 
-                readAndFormatGportalFtpServerLoginLog(cache.get(`bot_repository_${json_message_guild_id}`),json_message_guild_id,ftp_client);
+                readAndFormatGportalFtpServerLoginLog(cache.get(`bot_repository_${json_message_guild_id}`), json_message_guild_id, ftp_client);
 
                 checkLocalServerTime(json_message_guild_id);
 
@@ -1946,6 +1956,7 @@ async function registerInitialSetupCommands(bot_token, bot_id, guild_id) {
 }
 
 async function enqueueCommand(user_chat_message_object, guild_id) {
+    console.log(`Command has been enqueued: ${user_chat_message_object} + ${guild_id}`);
     const user_command_queue = new Queue();
 
     user_command_queue.enqueue(user_chat_message_object);
@@ -2013,7 +2024,8 @@ async function processQueueIfNotProcessing(user_command_queue, guild_id) {
         a document with the name 'test' will be searched for in MongoDB. MongoDB returns the bot_item_package as an object instead of an array of objects.
         */
         if (command_name.toString().startsWith('teleport')) {
-            bot_item_package = await bot_repository.getBotTeleportCommandFromName(command_name.toString());
+            const teleport_command_name = command_name.toString().replace("teleport", "");
+            bot_item_package = await bot_repository.getBotTeleportCommandFromName(teleport_command_name);
             teleport_coordinates = {
                 name: bot_item_package.name,
                 x: bot_item_package.x_coordinate,
@@ -2025,25 +2037,39 @@ async function processQueueIfNotProcessing(user_command_queue, guild_id) {
             await bot_repository.updateUserAccountBalance(command_to_execute_player_steam_id, -teleport_coordinates.cost);
             await teleportPlayerToLocation(teleport_coordinates, guild_id, command_to_execute_player_steam_id);
             continue;
-        } else {
-            try {
-                bot_item_package = await bot_repository.getBotPackageFromName(command_name.toString());
-            } catch (error) {
-                await sendMessageToClient(`${client_ingame_chat_name}, this package does not exist`);
-                continue;
-            }
         }
 
-        if (!bot_item_package) {
-            await sendMessageToClient(`${client_ingame_chat_name}, this package does not exist`);
-            continue;
-        } else {
+        try {
+            bot_item_package = await bot_repository.getBotPackageFromName(command_name.toString());
+            if (!bot_item_package) {
+                await sendMessageToClient(`${client_ingame_chat_name}, this package does not exist`, guild_id, 0);
+                continue;
+            }
+            /**
+             * Open the chat menu by pressing the 'T' key. If the chat is already open, press the 'Backspace key to get rid of the hanging 'T' character
+             */
             if (bot_item_package.package_items) {
                 bot_package_items = bot_item_package.package_items;
+                await sendCommandToClient(bot_package_items, guild_id, command_to_execute_player_steam_id);
             }
             if (bot_item_package.package_cost) {
                 bot_item_package_cost = bot_item_package.package_cost;
+                if (user_account_balance < bot_item_package_cost) {
+                    await sendMessageToClient(`${client_ingame_chat_name}, you do not have enough money to use this command`, guild_id, command_to_execute_player_steam_id)
+                    continue;
+                }
+                /**
+                 * Subtract the balance of the package from the user's balance
+                 */
+                await bot_repository.updateUserAccountBalance(command_to_execute_player_steam_id, -bot_item_package_cost);
+                await sendMessageToClient(`${client_ingame_chat_name}, the cost of the bot item package has been deducted from your account`, guild_id, command_to_execute_player_steam_id);
+                continue;
             }
+            continue;
+
+        } catch (error) {
+            await sendMessageToClient(`${client_ingame_chat_name}, this package does not exist`, guild_id, command_to_execute_player_steam_id);
+            continue;
         }
 
         /**
@@ -2060,29 +2086,11 @@ async function processQueueIfNotProcessing(user_command_queue, guild_id) {
                     `${client_ingame_chat_name}, you do not have enough money to use your welcome pack again. Use the command /balance to check your balance`,
                     guild_id,
                     command_to_execute_player_steam_id);
-                continue;
+
              } else {
                 await bot_repository.updateUserWelcomePackUsesByOne(user_account.user_steam_id);
                 await bot_repository.updateUserAccountBalance(user_account.user_steam_id, -welcome_pack_cost);
              }
-        }
-
-        if (user_account_balance < bot_item_package.package_cost) {
-            await sendMessageToClient(`${client_ingame_chat_name}, you do not have enough moeny to use this command`, guild_id, command_to_execute_player_steam_id)
-            continue;
-        }
-        /**
-         * Subtract the balance of the package from the user's balance
-         */
-        if (bot_item_package_cost) {
-            await bot_repository.updateUserAccountBalance(command_to_execute_player_steam_id, -bot_item_package_cost);
-            await sendMessageToClient(`${client_ingame_chat_name}, the cost of the bot item package has been deducted from your account`, guild_id, command_to_execute_player_steam_id);
-        }
-        /**
-         * Open the chat menu by pressing the 'T' key. If the chat is already open, press the 'Backspace key to get rid of the hanging 'T' character
-         */
-        if (bot_package_items) {
-            await sendCommandToClient(bot_package_items, guild_id, command_to_execute_player_steam_id);
         }
     }
 }
@@ -2127,6 +2135,7 @@ async function teleportPlayerToLocation(coordinates, websocket_id, steam_id) {
 }
 
 async function sendMessageToClient(message, websocket_id, steam_id) {
+    console.log("Send message to client");
     const websocket = cache.get(`websocket_${websocket_id}`);
 
     const message_array = [message];

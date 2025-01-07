@@ -24,7 +24,7 @@ function checkBotRepositoryInCache(request, response, next) {
     if (!cache.get(cacheKey)) {
         const botRepository = new BotRepository(guildId);
         cache.set(cacheKey, botRepository);
-    } 
+    }
     request.user.bot_repository = cache.get(cacheKey);
     next();
 }
@@ -45,7 +45,7 @@ router.post('/logdata', async function(request, response) {
     }
 });
 
-router.post('/createwebsocket', 
+router.post('/createwebsocket',
     body('email')
     .isEmail()
     .withMessage(`Please enter a valid email address`),
@@ -57,37 +57,39 @@ router.post('/createwebsocket',
 
     async function(request, response) {
 
-    const errors = validationResult(request);
-    if (!errors.isEmpty()) {
-        request.session.alert_title = 'Validation errors';
-        request.session.alert_description = '<ul id="error_message_list">' + errors.array().map(error => `<li>${error.msg}</li>`).join('') + '</ul>';
-        request.session.show_error_modal = true;
-        return response.redirect('/login');
-    }
+        const errors = validationResult(request);
+        if (!errors.isEmpty()) {
+            request.session.alert_title = 'Validation errors';
+            request.session.alert_description = '<ul id="error_message_list">' + errors.array().map(error => `<li>${error.msg}</li>`).join('') + '</ul>';
+            request.session.show_error_modal = true;
+            return response.redirect('/login');
+        }
 
-    const { email, password } = request.body;
-    const botRepository = new BotRepository();
+        const { email, password } = request.body;
+        const botRepository = new BotRepository();
 
-    try {
-        const repository_user = await botRepository.getBotUserByEmail(email);
+        try {
+            const repository_user = await botRepository.getBotDataByEmail(email);
 
-        if (repository_user) {
-            const user_password = repository_user.bot_password;
-            const user_salt = repository_user.bot_salt;
-            const is_valid_account = validatePassword(password, user_password, user_salt);
-            
-            if (is_valid_account) {
-                const user_id = repository_user.guild_id;
-                return response.json({ success: true, message: `Login successful`, bot_id: user_id});
+            if (repository_user) {
+                const user_password = repository_user.bot_password;
+                const user_salt = repository_user.bot_salt;
+                const is_valid_account = validatePassword(password, user_password, user_salt);
+
+                if (is_valid_account) {
+                    const user_id = repository_user.guild_id;
+                    return response.json({ success: true, message: `Login successful`, bot_id: user_id});
+                } else {
+                    return response.status(401).json({ success: false, message: `Invalid credentials` });
+                }
             } else {
                 return response.status(401).json({ success: false, message: `Invalid credentials` });
             }
-        } else {
-            return response.status(401).json({ success: false, message: `Invalid credentials` });
+        } catch (error) {
+            console.log("Error during login");
+            console.log(error);
+            return response.status(500).json({success: false, message: "An error occurred during login", error: `${error}`});
         }
-    } catch (error) {
-        return response.status(500).json({success: false, message: "An error occurred during login", error: `${error}`});
-    }
 });
 
 router.get('/newteleportcommand', isLoggedIn, function(request, response) {
@@ -145,7 +147,7 @@ router.get('/command/:commandname', isLoggedIn, checkBotRepositoryInCache, async
     const botRepository = request.user.bot_repository;
 
     try {
-        const package_data = await botRepository.getBotPackageFromName(package_name); 
+        const package_data = await botRepository.getBotPackageFromName(package_name);
 
         response.render('admin/command', {
             user: request.user,
@@ -157,7 +159,7 @@ router.get('/command/:commandname', isLoggedIn, checkBotRepositoryInCache, async
             cancel_modal_title: `Go back`,
             cancel_modal_description: `Are you sure you want to go back to the previous page?`
         });
-        
+
     } catch (error) {
         console.error(`Error fetching command data: ${error}`);
         response.render('admin/command', {
@@ -581,8 +583,8 @@ router.get('/discordchannelids', isLoggedIn, async (request, response) => {
         });
     } catch (error) {
         console.error(`There was an error when attempting to retrieve the page that allows you to change the Discord channel data. Please inform the server administrator of this error: ${error}`);
-        response.render('admin/discord_channel_ids', { 
-            user: request.user, 
+        response.render('admin/discord_channel_ids', {
+            user: request.user,
             title: `Discord channel ids`
         });
     }
@@ -610,9 +612,9 @@ router.get('/ftpserverdata', isLoggedIn, async (request, response) => {
         });
     } catch (error) {
         console.error(`There was an error when attempting to retrieve the page that allows you to change the FTP server data. Please inform the server administrator of this error: ${error}`);
-        response.render('admin/ftp_server_data', { 
-            user: request.user, 
-            title: `FTP server data` 
+        response.render('admin/ftp_server_data', {
+            user: request.user,
+            title: `FTP server data`
         });
     }
 });
@@ -640,8 +642,8 @@ router.get('/gameserverdata', isLoggedIn, (request, response) => {
         });
     } catch (error) {
         console.error(`There was an error when attempting to retrieve the page that allows you to set game server data: ${error}`);
-        response.render('admin/game_server_data', { 
-            user: request.user, 
+        response.render('admin/game_server_data', {
+            user: request.user,
             title: `Game server data`,
             info_message: `There was an error`
         });
@@ -677,10 +679,10 @@ router.get('/spawncoordinates', isLoggedIn, (request, response) => {
         });
     } catch (error) {
         console.error(`There was an error when attempting to retrieve the page that allows you to set the spawn location of players. Please inform the server administrator of this error: ${error}`);
-        response.render('admin/new_player_join_coordinates', { 
-            user: request.user, 
-            currentPage: '/admin/spawncoordinates', 
-            title: `Spawn zone coordinates` 
+        response.render('admin/new_player_join_coordinates', {
+            user: request.user,
+            currentPage: '/admin/spawncoordinates',
+            title: `Spawn zone coordinates`
         });
     }
 });
@@ -700,7 +702,7 @@ router.get('/logfiles', isLoggedIn, async (request, response) => {
     }
 });
 
-router.post('/setftpserverdata', isLoggedIn, checkBotRepositoryInCache, 
+router.post('/setftpserverdata', isLoggedIn, checkBotRepositoryInCache,
     body('ftp_server_hostname_input')
     .isString()
     .trim()
@@ -727,7 +729,7 @@ router.post('/setftpserverdata', isLoggedIn, checkBotRepositoryInCache,
     .trim()
     .notEmpty()
     .withMessage('The FTP server password must contain a string of characters'),
-    
+
     async (request, response) => {
 
     const errors = validationResult(request);
@@ -976,7 +978,7 @@ router.post("/deleteusers", isLoggedIn, checkBotRepositoryInCache, async functio
     }
 });
 
-router.post('/setspawncoordinates', isLoggedIn, checkBotRepositoryInCache,   
+router.post('/setspawncoordinates', isLoggedIn, checkBotRepositoryInCache,
     body('x_coordinate_data_input')
     .trim()
     .isNumeric()
@@ -991,7 +993,7 @@ router.post('/setspawncoordinates', isLoggedIn, checkBotRepositoryInCache,
     .trim()
     .isNumeric()
     .withMessage('The spawn zone z coordinate must be a number'),
-    
+
     async (request, response) => {
         const errors = validationResult(request);
         if (!errors.isEmpty()) {
@@ -1074,7 +1076,7 @@ router.post('/setspawncoordinates', isLoggedIn, checkBotRepositoryInCache,
 });
 
 
-router.post('/setdiscordchannelids', isLoggedIn, checkBotRepositoryInCache, 
+router.post('/setdiscordchannelids', isLoggedIn, checkBotRepositoryInCache,
     body('bot_ingame_chat_log_channel_id_input')
     .isString()
     .trim()
@@ -1088,7 +1090,7 @@ router.post('/setdiscordchannelids', isLoggedIn, checkBotRepositoryInCache,
     .isNumeric()
     .matches("^[0-9]{17,25}$")
     .withMessage('The player login channel id must consist of between 17 and 25 numbers between 0 and 9'),
-    
+
     body('bot_ingame_new_player_joined_id_input')
     .isString()
     .trim()
@@ -1109,7 +1111,7 @@ router.post('/setdiscordchannelids', isLoggedIn, checkBotRepositoryInCache,
     .isNumeric()
     .matches("^[0-9]{17,25}$")
     .withMessage('The server info button channel id must consist of between 17 and 25 numbers between 0 and 9'),
-    
+
     async (request, response) => {
 
         const errors = validationResult(request);
@@ -1174,7 +1176,7 @@ router.post('/setdiscordchannelids', isLoggedIn, checkBotRepositoryInCache,
         }
 });
 
-router.post('/setgameserverdata', isLoggedIn, checkBotRepositoryInCache, 
+router.post('/setgameserverdata', isLoggedIn, checkBotRepositoryInCache,
     body('game_server_hostname_input')
     .isString()
     .trim()
@@ -1188,7 +1190,7 @@ router.post('/setgameserverdata', isLoggedIn, checkBotRepositoryInCache,
     .notEmpty()
     .matches("^(102[4-9]|10[3-9][0-9]|1[1-9][0-9]{2}|[2-9][0-9]{3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$")
     .withMessage('Your game server port must be a number between 1024 and 65535'),
-    
+
     async (request, response) => {
 
         const errors = validationResult(request);
@@ -1251,7 +1253,7 @@ router.post('/setgameserverdata', isLoggedIn, checkBotRepositoryInCache,
 });
 
 
-router.post('/botcommand/new', isLoggedIn, checkBotRepositoryInCache, 
+router.post('/botcommand/new', isLoggedIn, checkBotRepositoryInCache,
     body('command_name')
     .trim()
     .notEmpty()
@@ -1268,7 +1270,7 @@ router.post('/botcommand/new', isLoggedIn, checkBotRepositoryInCache,
     .isNumeric()
     .matches("^[0-9]{1,6}$")
     .withMessage('The command cost must be a number between 0 and 6 digits long'),
-    
+
     async (request, response, next) => {
 
         const errors = validationResult(request);
